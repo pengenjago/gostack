@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"github.com/ThreeDotsLabs/watermill"
-	"github.com/ThreeDotsLabs/watermill/message"
 )
 
 type PubSub interface {
@@ -16,7 +15,7 @@ type Publisher interface {
 }
 
 type Subscriber interface {
-	Subscribe(topic string) (<-chan *message.Message, error)
+	Subscribe(topic string) ([]byte, error)
 	Close() error
 }
 
