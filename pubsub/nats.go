@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"context"
+	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-nats/pkg/nats"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/stan.go"
@@ -37,8 +38,13 @@ func (f *Factory) createNATS() (PubSub, error) {
 	}, nil
 }
 
-func (n *natsPubSub) Publish(topic string, messages ...*message.Message) error {
-	return n.publisher.Publish(topic, messages...)
+func (n *natsPubSub) Publish(topic string, msg []byte) error {
+	messages := message.Message{
+		UUID:    watermill.NewUUID(),
+		Payload: msg,
+	}
+
+	return n.publisher.Publish(topic, &messages)
 }
 
 func (n *natsPubSub) Subscribe(topic string) (<-chan *message.Message, error) {

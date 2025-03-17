@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"context"
+	"github.com/ThreeDotsLabs/watermill"
 
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -41,8 +42,12 @@ func (f *Factory) createKafka() (PubSub, error) {
 	}, nil
 }
 
-func (k *kafkaPubSub) Publish(topic string, messages ...*message.Message) error {
-	return k.publisher.Publish(topic, messages...)
+func (k *kafkaPubSub) Publish(topic string, msg []byte) error {
+	messages := message.Message{
+		UUID:    watermill.NewUUID(),
+		Payload: msg,
+	}
+	return k.publisher.Publish(topic, &messages)
 }
 
 func (k *kafkaPubSub) Subscribe(topic string) (<-chan *message.Message, error) {

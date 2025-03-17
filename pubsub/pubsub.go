@@ -11,7 +11,7 @@ type PubSub interface {
 }
 
 type Publisher interface {
-	Publish(topic string, messages ...*message.Message) error
+	Publish(topic string, msg []byte) error
 	Close() error
 }
 

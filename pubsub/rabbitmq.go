@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"context"
+	"github.com/ThreeDotsLabs/watermill"
 
 	"github.com/ThreeDotsLabs/watermill-amqp/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -31,8 +32,12 @@ func (f *Factory) createRabbitMQ() (PubSub, error) {
 	}, nil
 }
 
-func (r *rabbitPubSub) Publish(topic string, messages ...*message.Message) error {
-	return r.publisher.Publish(topic, messages...)
+func (r *rabbitPubSub) Publish(topic string, msg []byte) error {
+	messages := message.Message{
+		UUID:    watermill.NewUUID(),
+		Payload: msg,
+	}
+	return r.publisher.Publish(topic, &messages)
 }
 
 func (r *rabbitPubSub) Subscribe(topic string) (<-chan *message.Message, error) {
