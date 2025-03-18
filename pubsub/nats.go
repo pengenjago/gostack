@@ -2,36 +2,55 @@ package pubsub
 
 import (
 	"context"
-	"github.com/ThreeDotsLabs/watermill"
-	"github.com/ThreeDotsLabs/watermill-nats/pkg/nats"
-	"github.com/ThreeDotsLabs/watermill/message"
-	"github.com/nats-io/stan.go"
 	"log"
+	"time"
+
+	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill-nats/v2/pkg/nats"
+	"github.com/ThreeDotsLabs/watermill/message"
+	nc "github.com/nats-io/nats.go"
 )
 
 type natsPubSub struct {
-	publisher  *nats.StreamingPublisher
-	subscriber *nats.StreamingSubscriber
+	publisher  *nats.Publisher
+	subscriber *nats.Subscriber
 }
 
 func (f *Factory) createNATS() (PubSub, error) {
-	publisher, err := nats.NewStreamingPublisher(nats.StreamingPublisherConfig{
-		StanOptions: []stan.Option{
-			stan.NatsURL(f.pubsubUrl),
+	marshaler := &nats.GobMarshaler{}
+	logger := watermill.NewStdLogger(f.Debug, f.Trace)
+
+	options := []nc.Option{
+		nc.RetryOnFailedConnect(true),
+		nc.Timeout(30 * time.Second),
+		nc.ReconnectWait(1 * time.Second),
+	}
+
+	jsConfig := nats.JetStreamConfig{Disabled: true}
+	subscriber, err := nats.NewSubscriber(
+		nats.SubscriberConfig{
+			URL:            f.PubsubUrl,
+			CloseTimeout:   30 * time.Second,
+			AckWaitTimeout: 30 * time.Second,
+			NatsOptions:    options,
+			Unmarshaler:    marshaler,
+			JetStream:      jsConfig,
 		},
-	}, f.logger)
+		logger,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	subscriber, err := nats.NewStreamingSubscriber(nats.StreamingSubscriberConfig{
-		StanOptions: []stan.Option{
-			stan.NatsURL(f.pubsubUrl),
+	publisher, err := nats.NewPublisher(
+		nats.PublisherConfig{
+			URL:         f.PubsubUrl,
+			NatsOptions: options,
+			Marshaler:   marshaler,
+			JetStream:   jsConfig,
 		},
-	}, f.logger)
-	if err != nil {
-		return nil, err
-	}
+		logger,
+	)
 
 	return &natsPubSub{
 		publisher:  publisher,

@@ -15,14 +15,14 @@ type rabbitPubSub struct {
 }
 
 func (f *Factory) createRabbitMQ() (PubSub, error) {
-	amqpConfig := amqp.NewDurableQueueConfig(f.pubsubUrl)
+	amqpConfig := amqp.NewDurableQueueConfig(f.PubsubUrl)
 
-	publisher, err := amqp.NewPublisher(amqpConfig, f.logger)
+	publisher, err := amqp.NewPublisher(amqpConfig, watermill.NewStdLogger(f.Debug, f.Trace))
 	if err != nil {
 		return nil, err
 	}
 
-	subscriber, err := amqp.NewSubscriber(amqpConfig, f.logger)
+	subscriber, err := amqp.NewSubscriber(amqpConfig, watermill.NewStdLogger(f.Debug, f.Trace))
 	if err != nil {
 		return nil, err
 	}

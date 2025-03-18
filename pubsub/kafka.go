@@ -2,8 +2,9 @@ package pubsub
 
 import (
 	"context"
-	"github.com/ThreeDotsLabs/watermill"
 	"log"
+
+	"github.com/ThreeDotsLabs/watermill"
 
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -17,10 +18,10 @@ type kafkaPubSub struct {
 func (f *Factory) createKafka() (PubSub, error) {
 	publisher, err := kafka.NewPublisher(
 		kafka.PublisherConfig{
-			Brokers:   []string{f.pubsubUrl},
+			Brokers:   []string{f.PubsubUrl},
 			Marshaler: kafka.DefaultMarshaler{},
 		},
-		f.logger,
+		watermill.NewStdLogger(f.Debug, f.Trace),
 	)
 	if err != nil {
 		return nil, err
@@ -28,10 +29,10 @@ func (f *Factory) createKafka() (PubSub, error) {
 
 	subscriber, err := kafka.NewSubscriber(
 		kafka.SubscriberConfig{
-			Brokers:     []string{f.pubsubUrl},
+			Brokers:     []string{f.PubsubUrl},
 			Unmarshaler: kafka.DefaultMarshaler{},
 		},
-		f.logger,
+		watermill.NewStdLogger(f.Debug, f.Trace),
 	)
 	if err != nil {
 		return nil, err

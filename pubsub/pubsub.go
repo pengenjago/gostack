@@ -1,9 +1,5 @@
 package pubsub
 
-import (
-	"github.com/ThreeDotsLabs/watermill"
-)
-
 type PubSub interface {
 	Publisher
 	Subscriber
@@ -20,21 +16,25 @@ type Subscriber interface {
 }
 
 type Factory struct {
-	pubsubType string
-	pubsubUrl  string
-	logger     watermill.LoggerAdapter
+	// PubsubType is pubsub type such as kafka, nats, rabbitmq
+	PubsubType string
+	// PubsubUrl is pubsub url such as kafka://localhost:9092, nats://localhost:4222, amqp://localhost:5672
+	PubsubUrl  string
+	// Debug is log for debug, default is false.
+	Debug      bool
+	// Trace is log for trace, default is false.
+	Trace      bool
 }
 
-func NewFactory(pubsubType, pubsubUrl string, logger watermill.LoggerAdapter) *Factory {
-	return &Factory{
-		pubsubType: pubsubType,
-		pubsubUrl:  pubsubUrl,
-		logger:     logger,
+func NewFactory(config Factory) (PubSub, error) {
+	f := &Factory{
+		PubsubType: config.PubsubType,
+		PubsubUrl:  config.PubsubUrl,
+		Debug:      config.Debug,
+		Trace:      config.Trace,
 	}
-}
 
-func (f *Factory) Create() (PubSub, error) {
-	switch TypePubsub(f.pubsubType) {
+	switch TypePubsub(f.PubsubType) {
 	case Kafka:
 		return f.createKafka()
 	case NATS:
