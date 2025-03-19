@@ -25,7 +25,7 @@ func TestPublishSubscribe(t *testing.T) {
 	for _, psType := range pubsubTypes {
 		for _, tt := range tests {
 			t.Run(tt.name+"_"+psType, func(t *testing.T) {
-				ps, err := NewFactory(Factory{PubsubType: psType, PubsubUrl: "127.0.0.1:4222", Debug: false, Trace: false})
+				ps, err := NewFactory(Factory{PubsubType: psType, PubsubUrl: "nats://localhost:4222", Debug: false, Trace: false})
 				if err != nil {
 					t.Logf("Skipping test for %s due to creation error: %v", psType, err)
 					return
@@ -44,14 +44,9 @@ func TestPublishSubscribe(t *testing.T) {
 				}
 
 				// Test Subscribe
-				msg, err := ps.Subscribe(tt.topic)
-				if err != nil {
-					t.Logf("Subscribe error for %s: %v", psType, err)
-				}
-
-				if msg != nil {
+				ps.Subscribe(tt.topic, func(msg string) {
 					assert.Equal(t, tt.message, msg)
-				}
+				})
 			})
 		}
 	}

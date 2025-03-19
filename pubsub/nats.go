@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -67,19 +68,20 @@ func (n *natsPubSub) Publish(topic string, msg []byte) error {
 	return n.publisher.Publish(topic, &messages)
 }
 
-func (n *natsPubSub) Subscribe(topic string) ([]byte, error) {
+func (n *natsPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
 	messages, err := n.subscriber.Subscribe(context.Background(), topic)
+	if err != nil {
+		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
+		return
+	}
+
 	for msg := range messages {
-		log.Printf("received message: %s, payload: %s", msg.UUID, string(msg.Payload))
+		eventHandler(string(msg.Payload))
 
 		// we need to Acknowledge that we received and processed the message,
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
-
-		return msg.Payload, err
 	}
-
-	return nil, err
 }
 
 func (n *natsPubSub) Close() error {

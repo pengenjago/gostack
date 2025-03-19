@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -52,20 +53,20 @@ func (k *kafkaPubSub) Publish(topic string, msg []byte) error {
 	return k.publisher.Publish(topic, &messages)
 }
 
-func (k *kafkaPubSub) Subscribe(topic string) ([]byte, error) {
+func (k *kafkaPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
 	messages, err := k.subscriber.Subscribe(context.Background(), topic)
+	if err != nil {
+		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
+		return
+	}
 
 	for msg := range messages {
-		log.Printf("received message: %s, payload: %s", msg.UUID, string(msg.Payload))
+		eventHandler(string(msg.Payload))
 
 		// we need to Acknowledge that we received and processed the message,
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
-
-		return msg.Payload, err
 	}
-
-	return nil, err
 }
 
 func (k *kafkaPubSub) Close() error {

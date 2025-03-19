@@ -2,8 +2,10 @@ package pubsub
 
 import (
 	"context"
-	"github.com/ThreeDotsLabs/watermill"
+	"fmt"
 	"log"
+
+	"github.com/ThreeDotsLabs/watermill"
 
 	"github.com/ThreeDotsLabs/watermill-amqp/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -41,20 +43,20 @@ func (r *rabbitPubSub) Publish(topic string, msg []byte) error {
 	return r.publisher.Publish(topic, &messages)
 }
 
-func (r *rabbitPubSub) Subscribe(topic string) ([]byte, error) {
+func (r *rabbitPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
 	messages, err := r.subscriber.Subscribe(context.Background(), topic)
+	if err != nil {
+		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
+		return
+	}
 
 	for msg := range messages {
-		log.Printf("received message: %s, payload: %s", msg.UUID, string(msg.Payload))
+		eventHandler(string(msg.Payload))
 
 		// we need to Acknowledge that we received and processed the message,
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
-
-		return msg.Payload, err
 	}
-
-	return nil, err
 }
 
 func (r *rabbitPubSub) Close() error {

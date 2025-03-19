@@ -1,5 +1,6 @@
 package pubsub
 
+type PubsubEventHandler func(msg string)
 type PubSub interface {
 	Publisher
 	Subscriber
@@ -11,7 +12,7 @@ type Publisher interface {
 }
 
 type Subscriber interface {
-	Subscribe(topic string) ([]byte, error)
+	Subscribe(topic string, eventHandler PubsubEventHandler)
 	Close() error
 }
 
