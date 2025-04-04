@@ -13,14 +13,14 @@ import (
 )
 
 type natsPubSub struct {
-	publisher  *nats.Publisher
-	subscriber *nats.Subscriber
-	quesubscriber *nats.Subscriber
+	factory       *Factory
+	publisher     *nats.Publisher
+	subscriber    *nats.Subscriber
+	natsConfig nats.SubscriberConfig
 }
 
 func (f *Factory) createNATS() (PubSub, error) {
 	marshaler := &nats.GobMarshaler{}
-	logger := watermill.NewStdLogger(f.config.Debug, f.config.Trace)
 
 	options := []nc.Option{
 		nc.RetryOnFailedConnect(true),
@@ -31,26 +31,17 @@ func (f *Factory) createNATS() (PubSub, error) {
 	jsConfig := nats.JetStreamConfig{Disabled: true}
 
 	subsConfig := nats.SubscriberConfig{
-		URL:              f.config.PubsubUrl,
-		CloseTimeout:     30 * time.Second,
-		AckWaitTimeout:   30 * time.Second,
-		NatsOptions:      options,
-		Unmarshaler:      marshaler,
-		JetStream:        jsConfig,
+		URL:            f.config.PubsubUrl,
+		CloseTimeout:   30 * time.Second,
+		AckWaitTimeout: 30 * time.Second,
+		NatsOptions:    options,
+		Unmarshaler:    marshaler,
+		JetStream:      jsConfig,
 	}
 
 	subscriber, err := nats.NewSubscriber(
 		subsConfig,
-		logger,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	subsConfig.QueueGroupPrefix = f.config.Group
-	quesubscriber, err := nats.NewSubscriber(
-		subsConfig,
-		logger,
+		f.logger,
 	)
 	if err != nil {
 		return nil, err
@@ -63,13 +54,13 @@ func (f *Factory) createNATS() (PubSub, error) {
 			Marshaler:   marshaler,
 			JetStream:   jsConfig,
 		},
-		logger,
+		f.logger,
 	)
 
 	return &natsPubSub{
-		publisher:  publisher,
-		subscriber: subscriber,
-		quesubscriber: quesubscriber,
+		factory:       f,
+		publisher:     publisher,
+		subscriber:    subscriber,
 	}, nil
 }
 
@@ -98,8 +89,19 @@ func (n *natsPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
 	}
 }
 
-func (n *natsPubSub) QueueSubscribe(topic string, eventHandler PubsubEventHandler) {
-	messages, err := n.quesubscriber.Subscribe(context.Background(), topic)
+func (n *natsPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEventHandler) {
+	if group == "" {
+		log.Println("Customer Group cannot be empty")
+		return
+	}
+
+	n.natsConfig.QueueGroupPrefix = group
+	quesubscriber, _ := nats.NewSubscriber(
+		n.natsConfig,
+		n.factory.logger,
+	)
+
+	messages, err := quesubscriber.Subscribe(context.Background(), topic)
 	if err != nil {
 		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
 		return

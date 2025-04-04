@@ -12,34 +12,28 @@ import (
 )
 
 type rabbitPubSub struct {
-	publisher  *amqp.Publisher
-	subscriber *amqp.Subscriber
-	quesubscriber *amqp.Subscriber
+	factory       *Factory
+	publisher     *amqp.Publisher
+	subscriber    *amqp.Subscriber
 }
 
 func (f *Factory) createRabbitMQ() (PubSub, error) {
 	amqpConfig := amqp.NewDurableQueueConfig(f.config.PubsubUrl)
-	logger := watermill.NewStdLogger(f.config.Debug, f.config.Trace)
 
-	publisher, err := amqp.NewPublisher(amqpConfig, logger)
+	publisher, err := amqp.NewPublisher(amqpConfig, f.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	subscriber, err := amqp.NewSubscriber(amqpConfig, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	quesubscriber, err := amqp.NewSubscriber(amqp.NewDurablePubSubConfig(f.config.PubsubUrl, amqp.GenerateQueueNameConstant(f.config.Group)), logger)
+	subscriber, err := amqp.NewSubscriber(amqpConfig, f.logger)
 	if err != nil {
 		return nil, err
 	}
 
 	return &rabbitPubSub{
-		publisher:  publisher,
-		subscriber: subscriber,
-		quesubscriber: quesubscriber,
+		factory:       f,
+		publisher:     publisher,
+		subscriber:    subscriber,
 	}, nil
 }
 
@@ -67,8 +61,15 @@ func (r *rabbitPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) 
 	}
 }
 
-func (r *rabbitPubSub) QueueSubscribe(topic string, eventHandler PubsubEventHandler) {
-	messages, err := r.quesubscriber.Subscribe(context.Background(), topic)
+func (r *rabbitPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEventHandler) {
+	if group == "" {
+		log.Println("Customer Group cannot be empty")
+		return
+	}
+
+	quesubscriber, _ := amqp.NewSubscriber(amqp.NewDurablePubSubConfig(r.factory.config.PubsubUrl, amqp.GenerateQueueNameConstant(group)), r.factory.logger)
+
+	messages, err := quesubscriber.Subscribe(context.Background(), topic)
 	if err != nil {
 		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
 		return

@@ -12,20 +12,19 @@ import (
 )
 
 type kafkaPubSub struct {
-	publisher     *kafka.Publisher
-	subscriber    *kafka.Subscriber
-	quesubscriber *kafka.Subscriber
+	factory    *Factory
+	publisher  *kafka.Publisher
+	subscriber *kafka.Subscriber
 }
 
 func (f *Factory) createKafka() (PubSub, error) {
-	logger := watermill.NewStdLogger(f.config.Debug, f.config.Trace)
 
 	publisher, err := kafka.NewPublisher(
 		kafka.PublisherConfig{
 			Brokers:   []string{f.config.PubsubUrl},
 			Marshaler: kafka.DefaultMarshaler{},
 		},
-		logger,
+		f.logger,
 	)
 	if err != nil {
 		return nil, err
@@ -36,28 +35,16 @@ func (f *Factory) createKafka() (PubSub, error) {
 			Brokers:     []string{f.config.PubsubUrl},
 			Unmarshaler: kafka.DefaultMarshaler{},
 		},
-		logger,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	quesubscriber, err := kafka.NewSubscriber(
-		kafka.SubscriberConfig{
-			Brokers:       []string{f.config.PubsubUrl},
-			Unmarshaler:   kafka.DefaultMarshaler{},
-			ConsumerGroup: f.config.Group,
-		},
-		logger,
+		f.logger,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &kafkaPubSub{
-		publisher:     publisher,
-		subscriber:    subscriber,
-		quesubscriber: quesubscriber,
+		factory:    f,
+		publisher:  publisher,
+		subscriber: subscriber,
 	}, nil
 }
 
@@ -85,8 +72,22 @@ func (k *kafkaPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
 	}
 }
 
-func (k *kafkaPubSub) QueueSubscribe(topic string, eventHandler PubsubEventHandler) {
-	messages, err := k.subscriber.Subscribe(context.Background(), topic)
+func (k *kafkaPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEventHandler) {
+	if group == "" {
+		log.Println("Customer Group cannot be empty")
+		return
+	}
+
+	quesubscriber, _ := kafka.NewSubscriber(
+		kafka.SubscriberConfig{
+			Brokers:       []string{k.factory.config.PubsubUrl},
+			Unmarshaler:   kafka.DefaultMarshaler{},
+			ConsumerGroup: group,
+		},
+		k.factory.logger,
+	)
+
+	messages, err := quesubscriber.Subscribe(context.Background(), topic)
 	if err != nil {
 		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
 		return
