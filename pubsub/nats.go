@@ -62,6 +62,7 @@ func (f *Factory) createNATS() (PubSub, error) {
 		factory:    f,
 		publisher:  publisher,
 		subscriber: subscriber,
+		natsConfig: &subsConfig,
 	}, nil
 }
 
