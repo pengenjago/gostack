@@ -13,11 +13,12 @@ type Publisher interface {
 
 type Subscriber interface {
 	Subscribe(topic string, eventHandler PubsubEventHandler)
+	QueueSubscribe(topic string, eventHandler PubsubEventHandler)
 	Close() error
 }
 
-type Factory struct {
-	// PubsubType is pubsub type such as kafka, nats, rabbitmq
+type FactoryConfig struct {
+	// PubsubType is pubsub type such as Kafka, NATS, RabbitMq
 	PubsubType string
 	// PubsubUrl is pubsub url such as kafka://localhost:9092, nats://localhost:4222, amqp://localhost:5672
 	PubsubUrl  string
@@ -25,17 +26,20 @@ type Factory struct {
 	Debug      bool
 	// Trace is log for trace, default is false.
 	Trace      bool
+	// Group is for handle Queue Groups (NATS) / Customer Group (Kafka)
+	Group string
 }
 
-func NewFactory(config Factory) (PubSub, error) {
+type Factory struct {
+	config FactoryConfig
+}
+
+func NewFactory(config FactoryConfig) (PubSub, error) {
 	f := &Factory{
-		PubsubType: config.PubsubType,
-		PubsubUrl:  config.PubsubUrl,
-		Debug:      config.Debug,
-		Trace:      config.Trace,
+		config: config,
 	}
 
-	switch TypePubsub(f.PubsubType) {
+	switch TypePubsub(f.config.PubsubType) {
 	case Kafka:
 		return f.createKafka()
 	case NATS:
