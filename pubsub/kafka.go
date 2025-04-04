@@ -12,9 +12,10 @@ import (
 )
 
 type kafkaPubSub struct {
-	factory    *Factory
-	publisher  *kafka.Publisher
-	subscriber *kafka.Subscriber
+	factory       *Factory
+	publisher     *kafka.Publisher
+	subscriber    *kafka.Subscriber
+	quesubscriber *kafka.Subscriber
 }
 
 func (f *Factory) createKafka() (PubSub, error) {
@@ -78,18 +79,22 @@ func (k *kafkaPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEve
 		return
 	}
 
-	quesubscriber, _ := kafka.NewSubscriber(
-		kafka.SubscriberConfig{
-			Brokers:       []string{k.factory.config.PubsubUrl},
-			Unmarshaler:   kafka.DefaultMarshaler{},
-			ConsumerGroup: group,
-		},
-		k.factory.logger,
-	)
+	if k.quesubscriber == nil {
+		quesubscriber, _ := kafka.NewSubscriber(
+			kafka.SubscriberConfig{
+				Brokers:       []string{k.factory.config.PubsubUrl},
+				Unmarshaler:   kafka.DefaultMarshaler{},
+				ConsumerGroup: group,
+			},
+			k.factory.logger,
+		)
 
-	messages, err := quesubscriber.Subscribe(context.Background(), topic)
+		k.quesubscriber = quesubscriber
+	}
+
+	messages, err := k.quesubscriber.Subscribe(context.Background(), topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
+		log.Println(fmt.Sprintf("error QueueSubscribe topic %s with error : %v", topic, err.Error()))
 		return
 	}
 

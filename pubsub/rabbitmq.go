@@ -15,6 +15,7 @@ type rabbitPubSub struct {
 	factory       *Factory
 	publisher     *amqp.Publisher
 	subscriber    *amqp.Subscriber
+	quesubscriber *amqp.Subscriber
 }
 
 func (f *Factory) createRabbitMQ() (PubSub, error) {
@@ -31,9 +32,9 @@ func (f *Factory) createRabbitMQ() (PubSub, error) {
 	}
 
 	return &rabbitPubSub{
-		factory:       f,
-		publisher:     publisher,
-		subscriber:    subscriber,
+		factory:    f,
+		publisher:  publisher,
+		subscriber: subscriber,
 	}, nil
 }
 
@@ -67,11 +68,14 @@ func (r *rabbitPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEv
 		return
 	}
 
-	quesubscriber, _ := amqp.NewSubscriber(amqp.NewDurablePubSubConfig(r.factory.config.PubsubUrl, amqp.GenerateQueueNameConstant(group)), r.factory.logger)
+	if r.quesubscriber == nil {
+		quesubscriber, _ := amqp.NewSubscriber(amqp.NewDurablePubSubConfig(r.factory.config.PubsubUrl, amqp.GenerateQueueNameConstant(group)), r.factory.logger)
+		r.quesubscriber = quesubscriber
+	}
 
-	messages, err := quesubscriber.Subscribe(context.Background(), topic)
+	messages, err := r.quesubscriber.Subscribe(context.Background(), topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
+		log.Println(fmt.Sprintf("error QueueSubscribe topic %s with error : %v", topic, err.Error()))
 		return
 	}
 

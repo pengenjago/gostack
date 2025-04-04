@@ -16,7 +16,8 @@ type natsPubSub struct {
 	factory       *Factory
 	publisher     *nats.Publisher
 	subscriber    *nats.Subscriber
-	natsConfig nats.SubscriberConfig
+	quesubscriber *nats.Subscriber
+	natsConfig    *nats.SubscriberConfig
 }
 
 func (f *Factory) createNATS() (PubSub, error) {
@@ -58,9 +59,9 @@ func (f *Factory) createNATS() (PubSub, error) {
 	)
 
 	return &natsPubSub{
-		factory:       f,
-		publisher:     publisher,
-		subscriber:    subscriber,
+		factory:    f,
+		publisher:  publisher,
+		subscriber: subscriber,
 	}, nil
 }
 
@@ -95,15 +96,19 @@ func (n *natsPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEven
 		return
 	}
 
-	n.natsConfig.QueueGroupPrefix = group
-	quesubscriber, _ := nats.NewSubscriber(
-		n.natsConfig,
-		n.factory.logger,
-	)
+	if n.quesubscriber == nil {
+		n.natsConfig.QueueGroupPrefix = group
+		quesubscriber, _ := nats.NewSubscriber(
+			*n.natsConfig,
+			n.factory.logger,
+		)
 
-	messages, err := quesubscriber.Subscribe(context.Background(), topic)
+		n.quesubscriber = quesubscriber
+	}
+
+	messages, err := n.quesubscriber.Subscribe(context.Background(), topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
+		log.Println(fmt.Sprintf("error QueueSubscribe topic %s with error : %v", topic, err.Error()))
 		return
 	}
 
