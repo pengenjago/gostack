@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill"
 
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
@@ -80,11 +81,15 @@ func (k *kafkaPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEve
 	}
 
 	if k.quesubscriber == nil {
+		saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
+		saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+
 		quesubscriber, _ := kafka.NewSubscriber(
 			kafka.SubscriberConfig{
-				Brokers:       []string{k.factory.config.PubsubUrl},
-				Unmarshaler:   kafka.DefaultMarshaler{},
-				ConsumerGroup: group,
+				Brokers:               []string{k.factory.config.PubsubUrl},
+				Unmarshaler:           kafka.DefaultMarshaler{},
+				OverwriteSaramaConfig: saramaSubscriberConfig,
+				ConsumerGroup:         group,
 			},
 			k.factory.logger,
 		)
