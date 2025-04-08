@@ -20,9 +20,9 @@ type Subscriber interface {
 }
 
 type FactoryConfig struct {
-	// PubsubType is pubsub type such as Kafka, NATS, RabbitMq
+	// PubsubType is pubsub type such as Kafka, NATS, RabbitMq, Redis
 	PubsubType string
-	// PubsubUrl is pubsub url such as kafka://localhost:9092, nats://localhost:4222, amqp://localhost:5672
+	// PubsubUrl is pubsub url such as localhost:9092, nats://localhost:4222, amqp://localhost:5672
 	PubsubUrl string
 	// Debug is log for debug, default is false.
 	Debug bool
