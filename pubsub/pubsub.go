@@ -48,6 +48,8 @@ func NewFactory(config FactoryConfig) (PubSub, error) {
 		return f.createNATS()
 	case RabbitMQ:
 		return f.createRabbitMQ()
+	case Redis:
+		return f.createRedis()
 	default:
 		return nil, ErrUnsupportedPubSubType
 	}

@@ -18,9 +18,9 @@ type redisPubsub struct {
 	config        *redisstream.SubscriberConfig
 }
 
-func (r *redisPubsub) createRedis() (PubSub, error) {
+func (f *Factory) createRedis() (PubSub, error) {
 	redisClient := redis.NewClient(&redis.Options{
-		Addr: r.factory.config.PubsubUrl,
+		Addr: f.config.PubsubUrl,
 		DB:   0,
 	})
 
@@ -29,7 +29,7 @@ func (r *redisPubsub) createRedis() (PubSub, error) {
 		Unmarshaller: redisstream.DefaultMarshallerUnmarshaller{},
 	}
 
-	subscriber, err := redisstream.NewSubscriber(subsConfig, r.factory.logger)
+	subscriber, err := redisstream.NewSubscriber(subsConfig, f.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -37,13 +37,13 @@ func (r *redisPubsub) createRedis() (PubSub, error) {
 	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{
 		Client:     redisClient,
 		Marshaller: redisstream.DefaultMarshallerUnmarshaller{},
-	}, r.factory.logger)
+	}, f.logger)
 	if err != nil {
 		return nil, err
 	}
 
 	return &redisPubsub{
-		factory:    r.factory,
+		factory:    f,
 		subscriber: subscriber,
 		publisher:  publisher,
 		config:     &subsConfig,
