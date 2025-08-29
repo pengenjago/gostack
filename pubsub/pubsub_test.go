@@ -44,7 +44,7 @@ func TestPublishSubscribe(t *testing.T) {
 					return
 				}
 				defer func(ps PubSub) {
-					err := ps.Close()
+					err = ps.Close()
 					if err != nil {
 						log.Println(err)
 					}
