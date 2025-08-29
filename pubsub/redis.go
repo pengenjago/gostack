@@ -3,11 +3,11 @@ package pubsub
 import (
 	"context"
 	"fmt"
+
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/redis/go-redis/v9"
-	"log"
 )
 
 type redisPubsub struct {
@@ -50,7 +50,7 @@ func (f *Factory) createRedis() (PubSub, error) {
 	}, nil
 }
 
-func (r *redisPubsub) Publish(topic string, msg []byte) error {
+func (r *redisPubsub) Publish(ctx context.Context, topic string, msg []byte) error {
 	messages := message.Message{
 		UUID:    watermill.NewUUID(),
 		Payload: msg,
@@ -59,11 +59,10 @@ func (r *redisPubsub) Publish(topic string, msg []byte) error {
 	return r.publisher.Publish(topic, &messages)
 }
 
-func (r *redisPubsub) Subscribe(topic string, eventHandler PubsubEventHandler) {
-	messages, err := r.subscriber.Subscribe(context.Background(), topic)
+func (r *redisPubsub) Subscribe(ctx context.Context, topic string, eventHandler PubsubEventHandler) error {
+	messages, err := r.subscriber.Subscribe(ctx, topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
-		return
+		return fmt.Errorf("error subscribe topic %s with error : %v", topic, err.Error())
 	}
 
 	for msg := range messages {
@@ -73,12 +72,12 @@ func (r *redisPubsub) Subscribe(topic string, eventHandler PubsubEventHandler) {
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
 	}
+	return nil
 }
 
-func (r *redisPubsub) QueueSubscribe(topic, group string, eventHandler PubsubEventHandler) {
+func (r *redisPubsub) QueueSubscribe(ctx context.Context, topic, group string, eventHandler PubsubEventHandler) error {
 	if group == "" {
-		log.Println("Customer Group cannot be empty")
-		return
+		return fmt.Errorf("consumer group cannot be empty")
 	}
 
 	if r.quesubscriber == nil {
@@ -90,8 +89,7 @@ func (r *redisPubsub) QueueSubscribe(topic, group string, eventHandler PubsubEve
 
 	messages, err := r.quesubscriber.Subscribe(context.Background(), topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
-		return
+		return fmt.Errorf("error subscribe topic %s with error : %v", topic, err.Error())
 	}
 
 	for msg := range messages {
@@ -101,6 +99,7 @@ func (r *redisPubsub) QueueSubscribe(topic, group string, eventHandler PubsubEve
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
 	}
+	return nil
 }
 
 func (r *redisPubsub) Close() error {

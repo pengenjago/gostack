@@ -3,7 +3,6 @@ package pubsub
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -66,7 +65,7 @@ func (f *Factory) createNATS() (PubSub, error) {
 	}, nil
 }
 
-func (n *natsPubSub) Publish(topic string, msg []byte) error {
+func (n *natsPubSub) Publish(ctx context.Context, topic string, msg []byte) error {
 	messages := message.Message{
 		UUID:    watermill.NewUUID(),
 		Payload: msg,
@@ -75,11 +74,10 @@ func (n *natsPubSub) Publish(topic string, msg []byte) error {
 	return n.publisher.Publish(topic, &messages)
 }
 
-func (n *natsPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
-	messages, err := n.subscriber.Subscribe(context.Background(), topic)
+func (n *natsPubSub) Subscribe(ctx context.Context, topic string, eventHandler PubsubEventHandler) error {
+	messages, err := n.subscriber.Subscribe(ctx, topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
-		return
+		return fmt.Errorf("error subscribe topic %s with error : %v", topic, err.Error())
 	}
 
 	for msg := range messages {
@@ -89,12 +87,13 @@ func (n *natsPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
 	}
+
+	return nil
 }
 
-func (n *natsPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEventHandler) {
+func (n *natsPubSub) QueueSubscribe(ctx context.Context, topic, group string, eventHandler PubsubEventHandler) error {
 	if group == "" {
-		log.Println("Customer Group cannot be empty")
-		return
+		return fmt.Errorf("consumer group cannot be empty")
 	}
 
 	if n.quesubscriber == nil {
@@ -107,10 +106,9 @@ func (n *natsPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEven
 		n.quesubscriber = quesubscriber
 	}
 
-	messages, err := n.quesubscriber.Subscribe(context.Background(), topic)
+	messages, err := n.quesubscriber.Subscribe(ctx, topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error QueueSubscribe topic %s with error : %v", topic, err.Error()))
-		return
+		return fmt.Errorf("error QueueSubscribe topic %s with error : %v", topic, err.Error())
 	}
 
 	for msg := range messages {
@@ -120,6 +118,8 @@ func (n *natsPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEven
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
 	}
+
+	return nil
 }
 
 func (n *natsPubSub) Close() error {

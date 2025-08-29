@@ -3,7 +3,6 @@ package pubsub
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill"
@@ -50,7 +49,7 @@ func (f *Factory) createKafka() (PubSub, error) {
 	}, nil
 }
 
-func (k *kafkaPubSub) Publish(topic string, msg []byte) error {
+func (k *kafkaPubSub) Publish(ctx context.Context, topic string, msg []byte) error {
 	messages := message.Message{
 		UUID:    watermill.NewUUID(),
 		Payload: msg,
@@ -58,33 +57,41 @@ func (k *kafkaPubSub) Publish(topic string, msg []byte) error {
 	return k.publisher.Publish(topic, &messages)
 }
 
-func (k *kafkaPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
-	messages, err := k.subscriber.Subscribe(context.Background(), topic)
+func (k *kafkaPubSub) Subscribe(ctx context.Context, topic string, eventHandler PubsubEventHandler) error {
+	messages, err := k.subscriber.Subscribe(ctx, topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
-		return
+		return fmt.Errorf("failed to subscribe to topic %s: %w", topic, err)
 	}
 
-	for msg := range messages {
-		eventHandler(string(msg.Payload))
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-messages:
+				if !ok {
+					return
+				}
+				eventHandler(string(msg.Payload))
+				// Acknowledge that we received and processed the message
+				msg.Ack()
+			}
+		}
+	}()
 
-		// we need to Acknowledge that we received and processed the message,
-		// otherwise, it will be resent over and over again.
-		msg.Ack()
-	}
+	return nil
 }
 
-func (k *kafkaPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEventHandler) {
+func (k *kafkaPubSub) QueueSubscribe(ctx context.Context, topic, group string, eventHandler PubsubEventHandler) error {
 	if group == "" {
-		log.Println("Customer Group cannot be empty")
-		return
+		return fmt.Errorf("consumer group cannot be empty")
 	}
 
 	if k.quesubscriber == nil {
 		saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
 		saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 
-		quesubscriber, _ := kafka.NewSubscriber(
+		quesubscriber, err := kafka.NewSubscriber(
 			kafka.SubscriberConfig{
 				Brokers:               []string{k.factory.config.PubsubUrl},
 				Unmarshaler:           kafka.DefaultMarshaler{},
@@ -93,28 +100,61 @@ func (k *kafkaPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEve
 			},
 			k.factory.logger,
 		)
+		if err != nil {
+			return fmt.Errorf("failed to create queue subscriber: %w", err)
+		}
 
 		k.quesubscriber = quesubscriber
 	}
 
-	messages, err := k.quesubscriber.Subscribe(context.Background(), topic)
+	messages, err := k.quesubscriber.Subscribe(ctx, topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error QueueSubscribe topic %s with error : %v", topic, err.Error()))
-		return
+		return fmt.Errorf("failed to queue subscribe to topic %s: %w", topic, err)
 	}
 
-	for msg := range messages {
-		eventHandler(string(msg.Payload))
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-messages:
+				if !ok {
+					return
+				}
+				eventHandler(string(msg.Payload))
+				// Acknowledge that we received and processed the message
+				msg.Ack()
+			}
+		}
+	}()
 
-		// we need to Acknowledge that we received and processed the message,
-		// otherwise, it will be resent over and over again.
-		msg.Ack()
-	}
+	return nil
 }
 
 func (k *kafkaPubSub) Close() error {
-	if err := k.publisher.Close(); err != nil {
-		return err
+	var errs []error
+
+	if k.publisher != nil {
+		if err := k.publisher.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close publisher: %w", err))
+		}
 	}
-	return k.subscriber.Close()
+
+	if k.subscriber != nil {
+		if err := k.subscriber.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close subscriber: %w", err))
+		}
+	}
+
+	if k.quesubscriber != nil {
+		if err := k.quesubscriber.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close queue subscriber: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("errors closing kafka pubsub: %v", errs)
+	}
+
+	return nil
 }

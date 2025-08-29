@@ -3,7 +3,6 @@ package pubsub
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/ThreeDotsLabs/watermill"
 
@@ -38,7 +37,8 @@ func (f *Factory) createRabbitMQ() (PubSub, error) {
 	}, nil
 }
 
-func (r *rabbitPubSub) Publish(topic string, msg []byte) error {
+func (r *rabbitPubSub) Publish(ctx context.Context, topic string, msg []byte) error {
+
 	messages := message.Message{
 		UUID:    watermill.NewUUID(),
 		Payload: msg,
@@ -46,11 +46,10 @@ func (r *rabbitPubSub) Publish(topic string, msg []byte) error {
 	return r.publisher.Publish(topic, &messages)
 }
 
-func (r *rabbitPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) {
+func (r *rabbitPubSub) Subscribe(ctx context.Context, topic string, eventHandler PubsubEventHandler) error {
 	messages, err := r.subscriber.Subscribe(context.Background(), topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error subscribe topic %s with error : %v", topic, err.Error()))
-		return
+		return fmt.Errorf("error subscribe topic %s with error : %v", topic, err.Error())
 	}
 
 	for msg := range messages {
@@ -60,12 +59,12 @@ func (r *rabbitPubSub) Subscribe(topic string, eventHandler PubsubEventHandler) 
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
 	}
+	return nil
 }
 
-func (r *rabbitPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEventHandler) {
+func (r *rabbitPubSub) QueueSubscribe(ctx context.Context, topic, group string, eventHandler PubsubEventHandler) error {
 	if group == "" {
-		log.Println("Customer Group cannot be empty")
-		return
+		return fmt.Errorf("customer group cannot be empty")
 	}
 
 	if r.quesubscriber == nil {
@@ -75,8 +74,8 @@ func (r *rabbitPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEv
 
 	messages, err := r.quesubscriber.Subscribe(context.Background(), topic)
 	if err != nil {
-		log.Println(fmt.Sprintf("error QueueSubscribe topic %s with error : %v", topic, err.Error()))
-		return
+		return fmt.Errorf("error QueueSubscribe topic %s with error : %v", topic, err.Error())
+
 	}
 
 	for msg := range messages {
@@ -86,6 +85,7 @@ func (r *rabbitPubSub) QueueSubscribe(topic, group string, eventHandler PubsubEv
 		// otherwise, it will be resent over and over again.
 		msg.Ack()
 	}
+	return nil
 }
 
 func (r *rabbitPubSub) Close() error {
